@@ -53,13 +53,11 @@ runs:
         # ======
         # MACROS
         # ======
-        
-        fast_rmdir() {
-          if [[ -d "$1" ]] && [[ -n "$1" ]] && [[ ! "$1" = "/" ]] && [[ ! "$1" = "~" ]]; then
-            echo "Removing directory: $1"
-            sudo find "$1" -type f -delete -print | wc -l
-            sudo rm -rf "$1"
-          fi
+
+        setup_rmz() {
+          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+          cargo binstall -y rmz
+          ln -s ~/.cargo/bin/rmz /usr/local/bin/rmz
         }
 
         list_installed_dpkg() {
@@ -135,6 +133,7 @@ runs:
 
         AVAILABLE_INITIAL=$(getAvailableSpace)
         AVAILABLE_ROOT_INITIAL=$(getAvailableSpace '/')
+        setup_rmz()
 
         printDH "BEFORE CLEAN-UP:"
         echo ""
@@ -144,8 +143,8 @@ runs:
 
         if [[ ${{ inputs.android }} == 'true' ]]; then
           BEFORE=$(getAvailableSpace)
-          
-          fast_rmdir /usr/local/lib/android || true
+
+          sudo rmz -f /usr/local/lib/android || true
 
           AFTER=$(getAvailableSpace)
           SAVED=$((AFTER-BEFORE))
@@ -158,8 +157,8 @@ runs:
           BEFORE=$(getAvailableSpace)
 
           # https://github.community/t/bigger-github-hosted-runners-disk-space/17267/11
-          fast_rmdir /usr/share/dotnet || true
-          
+          sudo rmz -f /usr/share/dotnet || true
+
           AFTER=$(getAvailableSpace)
           SAVED=$((AFTER-BEFORE))
           printSavedSpace $SAVED ".NET runtime"
@@ -170,9 +169,9 @@ runs:
         if [[ ${{ inputs.haskell }} == 'true' ]]; then
           BEFORE=$(getAvailableSpace)
 
-          fast_rmdir /opt/ghc || true
-          fast_rmdir /usr/local/.ghcup || true
-          
+          sudo rmz -f /opt/ghc || true
+          sudo rmz -f /usr/local/.ghcup || true
+
           AFTER=$(getAvailableSpace)
           SAVED=$((AFTER-BEFORE))
           printSavedSpace $SAVED "Haskell runtime"
@@ -191,7 +190,7 @@ runs:
           if [ -d "/usr/lib/google-cloud-sdk" ]; then
             echo "Cleaning Google Cloud CLI files..."
             find /usr/lib/google-cloud-sdk -type f -delete -print | wc -l
-            rm -rf /usr/lib/google-cloud-sdk
+            rmz -f /usr/lib/google-cloud-sdk
             echo "Cleaning Google Cloud CLI manuals..."
             find /usr/share/man -type f -name "gcloud*" -delete -print | wc -l
           fi'
@@ -225,8 +224,8 @@ runs:
         if [[ ${{ inputs.tool-cache }} == 'true' ]]; then
           BEFORE=$(getAvailableSpace)
 
-          fast_rmdir "$AGENT_TOOLSDIRECTORY" || true
-          
+          sudo rmz -f "$AGENT_TOOLSDIRECTORY" || true
+
           AFTER=$(getAvailableSpace)
           SAVED=$((AFTER-BEFORE))
           printSavedSpace $SAVED "Tool cache"
@@ -238,9 +237,9 @@ runs:
           BEFORE=$(getAvailableSpace)
 
           sudo swapoff -a || true
-          sudo rm -f /mnt/swapfile || true
+          sudo rmz -f /mnt/swapfile || true
           free -h
-          
+
           AFTER=$(getAvailableSpace)
           SAVED=$((AFTER-BEFORE))
           printSavedSpace $SAVED "Swap storage"
