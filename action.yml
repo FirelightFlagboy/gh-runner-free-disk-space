@@ -133,7 +133,7 @@ runs:
 
         AVAILABLE_INITIAL=$(getAvailableSpace)
         AVAILABLE_ROOT_INITIAL=$(getAvailableSpace '/')
-        setup_rmz()
+        setup_rmz
 
         printDH "BEFORE CLEAN-UP:"
         echo ""
@@ -245,7 +245,7 @@ runs:
           printSavedSpace $SAVED "Swap storage"
         fi
 
-
+        sudo rm -f /usr/local/bin/rmz
 
         # Output saved space statistic
 
