@@ -55,8 +55,8 @@ runs:
         # ======
 
         setup_rmz() {
-          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-          cargo binstall -y rmz
+          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash /dev/null 2>&1
+          cargo binstall -y rmz /dev/null 2>&1
           ln -s ~/.cargo/bin/rmz /usr/local/bin/rmz
         }
 
@@ -188,11 +188,7 @@ runs:
           gcloud_prerm='#!/bin/sh
           echo $0
           if [ -d "/usr/lib/google-cloud-sdk" ]; then
-            echo "Cleaning Google Cloud CLI files..."
-            find /usr/lib/google-cloud-sdk -type f -delete -print | wc -l
-            rmz -f /usr/lib/google-cloud-sdk
-            echo "Cleaning Google Cloud CLI manuals..."
-            find /usr/share/man -type f -name "gcloud*" -delete -print | wc -l
+            sudo rmz -f /usr/lib/google-cloud-sdk
           fi'
 
           echo "$gcloud_prerm" | sudo tee /var/lib/dpkg/info/google-cloud-cli-anthoscli.prerm >/dev/null
