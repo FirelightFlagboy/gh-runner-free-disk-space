@@ -55,7 +55,7 @@ runs:
         # ======
 
         setup_rmz() {
-          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash /dev/null 2>&1
+          curl -sL --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
           cargo binstall -y rmz /dev/null 2>&1
           ln -s ~/.cargo/bin/rmz /usr/local/bin/rmz
         }
