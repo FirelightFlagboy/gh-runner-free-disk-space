@@ -43,15 +43,15 @@ INITIAL_SPACE=$(get_available_space)
 setup_rmz
 
 if [[ $INPUT_ANDROID == 'true' ]]; then
-  remove_and_measure "Android library" sudo rmz -rf /usr/local/lib/android
+  remove_and_measure "Android library" sudo rmz -f /usr/local/lib/android
 fi
 
 if [[ $INPUT_DOTNET == 'true' ]]; then
-  remove_and_measure ".NET runtime" sudo rmz -rf /usr/share/dotnet
+  remove_and_measure ".NET runtime" sudo rmz -f /usr/share/dotnet
 fi
 
 if [[ $INPUT_HASKELL == 'true' ]]; then
-  remove_and_measure "Haskell runtime" sudo rmz -rf /opt/ghc /usr/local/.ghcup
+  remove_and_measure "Haskell runtime" sudo rmz -f /opt/ghc /usr/local/.ghcup
 fi
 
 if [[ $INPUT_LARGE_PACKAGES == 'true' ]]; then
@@ -62,7 +62,7 @@ if [[ $INPUT_LARGE_PACKAGES == 'true' ]]; then
     echo $0
     if [ -d "/usr/lib/google-cloud-sdk" ]; then
         find /usr/lib/google-cloud-sdk -type f -delete -print | wc -l
-        sudo rmz -rf /usr/lib/google-cloud-sdk
+        sudo rmz -f /usr/lib/google-cloud-sdk
         find /usr/share/man -type f -name "gcloud*" -delete -print | wc -l
     fi'"'"'
 
@@ -80,7 +80,7 @@ if [[ $INPUT_DOCKER_IMAGES == 'true' ]]; then
 fi
 
 if [[ $INPUT_TOOL_CACHE == 'true' ]]; then
-  remove_and_measure "Tool cache" sudo rmz -rf "$AGENT_TOOLSDIRECTORY"
+  remove_and_measure "Tool cache" sudo rmz -f "$AGENT_TOOLSDIRECTORY"
 fi
 
 if [[ $INPUT_SWAP_STORAGE == 'true' ]]; then
