@@ -38,6 +38,10 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Make script executable
+      shell: bash
+      run: chmod +x ${{ github.action_path }}/free_space.sh
+
     - name: Run free disk space script
       shell: bash
       run: ${{ github.action_path }}/free_space.sh
