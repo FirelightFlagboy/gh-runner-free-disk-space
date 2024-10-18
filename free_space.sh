@@ -9,10 +9,6 @@ setup_rmz() {
   echo "rmz setup completed"
 }
 
-list_installed_dpkg() {
-    dpkg --get-selections $@ | grep -v deinstall | awk '{print $1}'
-}
-
 get_available_space() {
   df -a $1 | awk 'NR > 1 {avail+=$4} END {print avail}'
 }
@@ -39,8 +35,8 @@ remove_and_measure() {
   echo ""
 }
 
-INITIAL_SPACE=$(get_available_space)
 setup_rmz
+INITIAL_SPACE=$(get_available_space)
 
 if [[ $INPUT_ANDROID == 'true' ]]; then
   remove_and_measure "Android library" sudo rmz -f /usr/local/lib/android
@@ -56,6 +52,10 @@ fi
 
 if [[ $INPUT_LARGE_PACKAGES == 'true' ]]; then
   remove_and_measure "Large misc. packages" bash -c '
+    list_installed_dpkg() {
+      dpkg --get-selections "$@" | grep -v deinstall | awk '"'"'{print $1}'"'"'
+    }
+
     pkgs=$(list_installed_dpkg "aspnetcore-*" "dotnet-*" "llvm-*" "*php*" "mongodb-*" "mysql-*" azure-cli google-chrome-stable firefox powershell mono-devel libgl1-mesa-dri "google-cloud-*" "gcloud-*" || true)
     
     gcloud_prerm='"'"'#!/bin/sh
@@ -69,8 +69,10 @@ if [[ $INPUT_LARGE_PACKAGES == 'true' ]]; then
     echo "$gcloud_prerm" | sudo tee /var/lib/dpkg/info/google-cloud-cli-anthoscli.prerm >/dev/null
     echo "$gcloud_prerm" | sudo tee /var/lib/dpkg/info/google-cloud-cli.prerm >/dev/null
 
-    sudo DEBIAN_FRONTEND=noninteractive apt-get remove --autoremove -y $pkgs
-    sudo apt-get clean
+    if [ ! -z "$pkgs" ]; then
+      sudo DEBIAN_FRONTEND=noninteractive apt-get remove --autoremove -y $pkgs
+      sudo apt-get clean
+    fi
   '
   echo ""
 fi
@@ -91,6 +93,7 @@ if [[ $INPUT_SWAP_STORAGE == 'true' ]]; then
 fi
 
 sudo rm -f /usr/local/bin/rmz
+echo ""
 FINAL_SPACE=$(get_available_space)
 TOTAL_SAVED=$((FINAL_SPACE - INITIAL_SPACE))
 
