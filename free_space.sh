@@ -39,7 +39,7 @@ setup_rmz
 INITIAL_SPACE=$(get_available_space)
 
 if [[ $INPUT_ANDROID == 'true' ]]; then
-  remove_and_measure "Android library" sudo rmz -f /usr/local/lib/android
+  remove_and_measure "Android library" sudo rm -rf /usr/local/lib/android
 fi
 
 if [[ $INPUT_DOTNET == 'true' ]]; then
