@@ -56,7 +56,7 @@ runs:
 
         setup_rmz() {
           curl -sL --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-          cargo binstall -y rmz
+          cargo binstall -qy rmz
           ln -s ~/.cargo/bin/rmz /usr/local/bin/rmz
         }
 
@@ -169,8 +169,7 @@ runs:
         if [[ ${{ inputs.haskell }} == 'true' ]]; then
           BEFORE=$(getAvailableSpace)
 
-          sudo rmz -f /opt/ghc || true
-          sudo rmz -f /usr/local/.ghcup || true
+          sudo rmz -f /opt/ghc /usr/local/.ghcup || true
 
           AFTER=$(getAvailableSpace)
           SAVED=$((AFTER-BEFORE))
