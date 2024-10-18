@@ -1,13 +1,13 @@
 #!/bin/bash
 
-setup_rmz() {
-  curl -fsSL --tlsv1.2 --proto '=https' https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-  cargo binstall -qy rmz
-  sudo ln -s ~/.cargo/bin/rmz /usr/local/bin/rmz
-}
+set -e
 
-list_installed_dpkg() {
-  dpkg-query -W -f='${Package}\n' "$@" | grep -v -E '^(base-files|core-utils|libc6)$'
+setup_rmz() {
+  # Suppress all output from curl and cargo-binstall
+  curl -fsSL --tlsv1.2 --proto '=https' https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash > /dev/null 2>&1
+  cargo binstall -qy rmz > /dev/null 2>&1
+  sudo ln -sf ~/.cargo/bin/rmz /usr/local/bin/rmz
+  echo "rmz setup completed"
 }
 
 get_available_space() {
@@ -15,18 +15,8 @@ get_available_space() {
 }
 
 format_byte_count() {
-  numfmt --to=iec-i --suffix=B --padding=7 $(($1 * 1000))
+  numfmt --to=iec-i --suffix=B --padding=7 "${1}"
 }
-
-print_saved_space_and_time() {
-  local saved=$1
-  local time=$2
-  local title=$3
-  echo "$title: Saved $(format_byte_count $saved) in ${time} seconds"
-}
-
-INITIAL_SPACE=$(get_available_space)
-setup_rmz 
 
 remove_and_measure() {
   local title=$1
@@ -41,57 +31,49 @@ remove_and_measure() {
   local saved=$((after - before))
   local time_taken=$((end_time - start_time))
   
-  print_saved_space_and_time $saved $time_taken "$title"
+  echo "$title: Saved $(format_byte_count $saved) in ${time_taken} seconds"
 }
 
-# Remove Android library
-if [[ ${{ inputs.android }} == 'true' ]]; then
-  remove_and_measure "Android library" sudo rmz -f /usr/local/lib/android
+INITIAL_SPACE=$(get_available_space)
+setup_rmz
+
+if [[ $INPUT_ANDROID == 'true' ]]; then
+  remove_and_measure "Android library" sudo rm -rf /usr/local/lib/android
 fi
 
-# Remove .NET runtime
-if [[ ${{ inputs.dotnet }} == 'true' ]]; then
-  remove_and_measure ".NET runtime" sudo rmz -f /usr/share/dotnet
+if [[ $INPUT_DOTNET == 'true' ]]; then
+  remove_and_measure ".NET runtime" sudo rm -rf /usr/share/dotnet
 fi
 
-# Remove Haskell runtime
-if [[ ${{ inputs.haskell }} == 'true' ]]; then
-  remove_and_measure "Haskell runtime" sudo rmz -f /opt/ghc /usr/local/.ghcup
+if [[ $INPUT_HASKELL == 'true' ]]; then
+  remove_and_measure "Haskell runtime" sudo rm -rf /opt/ghc /usr/local/.ghcup
 fi
 
-# Remove large packages
-if [[ ${{ inputs.large-packages }} == 'true' ]]; then
+if [[ $INPUT_LARGE_PACKAGES == 'true' ]]; then
   remove_and_measure "Large misc. packages" bash -c '
-    pkgs=$(list_installed_dpkg "aspnetcore-*" "dotnet-*" "llvm-*" "*php*" "mongodb-*" "mysql-*" azure-cli google-chrome-stable firefox powershell mono-devel libgl1-mesa-dri "google-cloud-*" "gcloud-*")
-    gcloud_prerm="#!/bin/sh
-    [ -d \"/usr/lib/google-cloud-sdk\" ] && sudo rmz -f /usr/lib/google-cloud-sdk"
-    echo "$gcloud_prerm" | sudo tee /var/lib/dpkg/info/google-cloud-cli-anthoscli.prerm /var/lib/dpkg/info/google-cloud-cli.prerm >/dev/null
-    sudo DEBIAN_FRONTEND=noninteractive apt-get purge -y $pkgs
-    sudo apt-get autoremove -y
-    sudo apt-get clean
+    pkgs=$(dpkg-query -W -f='${Package}\n' aspnetcore-* dotnet-* llvm-* *php* mongodb-* mysql-* azure-cli google-chrome-stable firefox powershell mono-devel libgl1-mesa-dri google-cloud-* gcloud-* | grep -v -E "^(base-files|core-utils|libc6)$")
+    if [ ! -z "$pkgs" ]; then
+      sudo DEBIAN_FRONTEND=noninteractive apt-get purge -y $pkgs
+      sudo apt-get autoremove -y
+      sudo apt-get clean
+    fi
   '
 fi
 
-# Remove Docker images
-if [[ ${{ inputs.docker-images }} == 'true' ]]; then
+if [[ $INPUT_DOCKER_IMAGES == 'true' ]]; then
   remove_and_measure "Docker images" sudo docker system prune -af
 fi
 
-# Remove tool cache
-if [[ ${{ inputs.tool-cache }} == 'true' ]]; then
-  remove_and_measure "Tool cache" sudo rmz -f "$AGENT_TOOLSDIRECTORY"
+if [[ $INPUT_TOOL_CACHE == 'true' ]]; then
+  remove_and_measure "Tool cache" sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 fi
 
-# Remove Swap storage
-if [[ ${{ inputs.swap-storage }} == 'true' ]]; then
+if [[ $INPUT_SWAP_STORAGE == 'true' ]]; then
   remove_and_measure "Swap storage" bash -c '
     sudo swapoff -a
-    sudo rmz -f /mnt/swapfile
-    free -h
+    sudo rm -f /mnt/swapfile
   '
 fi
-
-sudo rm -f /usr/local/bin/rmz
 
 FINAL_SPACE=$(get_available_space)
 TOTAL_SAVED=$((FINAL_SPACE - INITIAL_SPACE))
