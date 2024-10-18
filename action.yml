@@ -49,217 +49,100 @@ runs:
   steps:
     - shell: bash
       run: |
-
-        # ======
-        # MACROS
-        # ======
-        
-        fast_rmdir() {
-          if [[ -d "$1" ]] && [[ -n "$1" ]] && [[ ! "$1" = "/" ]] && [[ ! "$1" = "~" ]]; then
-            echo "Removing directory: $1"
-            sudo find "$1" -type f -delete -print | wc -l
-            sudo rm -rf "$1"
-          fi
+        setup_rmz() {
+          curl -fsSL --tlsv1.2 --proto '=https' https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+          cargo binstall -qy rmz
+          sudo ln -s ~/.cargo/bin/rmz /usr/local/bin/rmz
         }
 
-        list_installed_dpkg() {
-          dpkg --get-selections $@ | grep -v deinstall | awk '{print $1}'
+        get_available_space() {
+          df / | awk 'NR==2 {print $4}'
         }
 
-        # macro to print a line of equals
-        # (silly but works)
-        printSeparationLine() {
-          str=${1:=}
-          num=${2:-80}
-          counter=1
-          output=""
-          while [ $counter -le $num ]
-          do
-             output="${output}${str}"
-             counter=$((counter+1))
-          done
-          echo "${output}"
+        format_byte_count() {
+          numfmt --to=iec-i --suffix=B --padding=7 $(($1 * 1000))
         }
 
-        # macro to compute available space
-        # REF: https://unix.stackexchange.com/a/42049/60849
-        # REF: https://stackoverflow.com/a/450821/408734
-        getAvailableSpace() { echo $(df -a $1 | awk 'NR > 1 {avail+=$4} END {print avail}'); }
-
-        # macro to make Kb human readable (assume the input is Kb)
-        # REF: https://unix.stackexchange.com/a/44087/60849
-        formatByteCount() { echo $(numfmt --to=iec-i --suffix=B --padding=7 $1'000'); }
-
-        # macro to output saved space
-        printSavedSpace() {
-          saved=${1}
-          title=${2:-}
-
-          echo ""
-          printSeparationLine '*' 80
-          if [ ! -z "${title}" ]; then
-            echo "=> ${title}: Saved $(formatByteCount $saved)"
-          else
-            echo "=> Saved $(formatByteCount $saved)"
-          fi
-          printSeparationLine '*' 80
-          echo ""
+        print_saved_space_and_time() {
+          local saved=$1
+          local time=$2
+          local title=$3
+          echo "$title: Saved $(format_byte_count $saved) in ${time} seconds"
         }
 
-        # macro to print output of dh with caption
-        printDH() {
-          caption=${1:-}
+        INITIAL_SPACE=$(get_available_space)
+        setup_rmz
 
-          printSeparationLine '=' 80
-          echo "${caption}"
-          echo ""
-          echo "$ dh -h /"
-          echo ""
-          df -h /
-          echo "$ dh -a /"
-          echo ""
-          df -a /
-          echo "$ dh -a"
-          echo ""
-          df -a
-          printSeparationLine '=' 80
+        remove_and_measure() {
+          local title=$1
+          shift
+          local start_time=$(date +%s)
+          local before=$(get_available_space)
+
+          "$@"
+
+          local after=$(get_available_space)
+          local end_time=$(date +%s)
+          local saved=$((after - before))
+          local time_taken=$((end_time - start_time))
+
+          print_saved_space_and_time $saved $time_taken "$title"
         }
 
-
-
-        # ======
-        # SCRIPT
-        # ======
-
-        # Display initial disk space stats
-
-        AVAILABLE_INITIAL=$(getAvailableSpace)
-        AVAILABLE_ROOT_INITIAL=$(getAvailableSpace '/')
-
-        printDH "BEFORE CLEAN-UP:"
-        echo ""
-
-
-        # Option: Remove Android library
-
+        # Remove Android library
         if [[ ${{ inputs.android }} == 'true' ]]; then
-          BEFORE=$(getAvailableSpace)
-          
-          fast_rmdir /usr/local/lib/android || true
-
-          AFTER=$(getAvailableSpace)
-          SAVED=$((AFTER-BEFORE))
-          printSavedSpace $SAVED "Android library"
+          remove_and_measure "Android library" sudo rmz -f /usr/local/lib/android
         fi
 
-        # Option: Remove .NET runtime
-
+        # Remove .NET runtime
         if [[ ${{ inputs.dotnet }} == 'true' ]]; then
-          BEFORE=$(getAvailableSpace)
-
-          # https://github.community/t/bigger-github-hosted-runners-disk-space/17267/11
-          fast_rmdir /usr/share/dotnet || true
-          
-          AFTER=$(getAvailableSpace)
-          SAVED=$((AFTER-BEFORE))
-          printSavedSpace $SAVED ".NET runtime"
+          remove_and_measure ".NET runtime" sudo rmz -f /usr/share/dotnet
         fi
 
-        # Option: Remove Haskell runtime
-
+        # Remove Haskell runtime
         if [[ ${{ inputs.haskell }} == 'true' ]]; then
-          BEFORE=$(getAvailableSpace)
-
-          fast_rmdir /opt/ghc || true
-          fast_rmdir /usr/local/.ghcup || true
-          
-          AFTER=$(getAvailableSpace)
-          SAVED=$((AFTER-BEFORE))
-          printSavedSpace $SAVED "Haskell runtime"
+          remove_and_measure "Haskell runtime" sudo rmz -f /opt/ghc /usr/local/.ghcup
         fi
 
-        # Option: Remove large packages
-        # REF: https://github.com/apache/flink/blob/master/tools/azure-pipelines/free_disk_space.sh
-
+        # Remove large packages
         if [[ ${{ inputs.large-packages }} == 'true' ]]; then
-          BEFORE=$(getAvailableSpace)
+          remove_and_measure "Large misc. packages" bash -c '
+              pkgs=$(dpkg-query -W -f='${Package}\n' \
+              'aspnetcore-*' 'dotnet-*' 'llvm-*' '*php*' 'mongodb-*' 'mysql-*' \
+              azure-cli google-chrome-stable firefox powershell mono-devel \
+              libgl1-mesa-dri 'google-cloud-*' 'gcloud-*' | tr '\n' ' ')
+            
+            gcloud_prerm="#!/bin/sh
+            [ -d \"/usr/lib/google-cloud-sdk\" ] && sudo rmz -f /usr/lib/google-cloud-sdk"
+            echo "$gcloud_prerm" | sudo tee /var/lib/dpkg/info/google-cloud-cli-anthoscli.prerm /var/lib/dpkg/info/google-cloud-cli.prerm >/dev/null
 
-          pkgs=$(list_installed_dpkg 'aspnetcore-*' 'dotnet-*' 'llvm-*' '*php*' 'mongodb-*' 'mysql-*' azure-cli google-chrome-stable firefox powershell mono-devel libgl1-mesa-dri 'google-cloud-*' 'gcloud-*' || true)
-
-          gcloud_prerm='#!/bin/sh
-          echo $0
-          if [ -d "/usr/lib/google-cloud-sdk" ]; then
-            echo "Cleaning Google Cloud CLI files..."
-            find /usr/lib/google-cloud-sdk -type f -delete -print | wc -l
-            rm -rf /usr/lib/google-cloud-sdk
-            echo "Cleaning Google Cloud CLI manuals..."
-            find /usr/share/man -type f -name "gcloud*" -delete -print | wc -l
-          fi'
-
-          echo "$gcloud_prerm" | sudo tee /var/lib/dpkg/info/google-cloud-cli-anthoscli.prerm >/dev/null
-          echo "$gcloud_prerm" | sudo tee /var/lib/dpkg/info/google-cloud-cli.prerm >/dev/null
-
-          sudo apt-get remove --autoremove -y $pkgs || echo "::warning::The command [sudo apt-get remove -y] failed to complete successfully. Proceeding..."
-          sudo apt-get clean || echo "::warning::The command [sudo apt-get clean] failed to complete successfully. Proceeding..."
-
-          AFTER=$(getAvailableSpace)
-          SAVED=$((AFTER-BEFORE))
-          printSavedSpace $SAVED "Large misc. packages"
+            sudo DEBIAN_FRONTEND=noninteractive apt-get remove --autoremove -y $pkgs
+            sudo apt-get clean
+          '
         fi
 
-        # Option: Remove Docker images
-
+        # Remove Docker images
         if [[ ${{ inputs.docker-images }} == 'true' ]]; then
-          BEFORE=$(getAvailableSpace)
-
-          sudo docker image prune --all --force || true
-
-          AFTER=$(getAvailableSpace)
-          SAVED=$((AFTER-BEFORE))
-          printSavedSpace $SAVED "Docker images"
+          remove_and_measure "Docker images" sudo docker system prune -af
         fi
 
-        # Option: Remove tool cache
-        # REF: https://github.com/actions/virtual-environments/issues/2875#issuecomment-1163392159
-
+        # Remove tool cache
         if [[ ${{ inputs.tool-cache }} == 'true' ]]; then
-          BEFORE=$(getAvailableSpace)
-
-          fast_rmdir "$AGENT_TOOLSDIRECTORY" || true
-          
-          AFTER=$(getAvailableSpace)
-          SAVED=$((AFTER-BEFORE))
-          printSavedSpace $SAVED "Tool cache"
+          remove_and_measure "Tool cache" sudo rmz -f "$AGENT_TOOLSDIRECTORY"
         fi
 
-        # Option: Remove Swap storage
-
+        # Remove Swap storage
         if [[ ${{ inputs.swap-storage }} == 'true' ]]; then
-          BEFORE=$(getAvailableSpace)
-
-          sudo swapoff -a || true
-          sudo rm -f /mnt/swapfile || true
-          free -h
-          
-          AFTER=$(getAvailableSpace)
-          SAVED=$((AFTER-BEFORE))
-          printSavedSpace $SAVED "Swap storage"
+          remove_and_measure "Swap storage" bash -c '
+            sudo swapoff -a
+            sudo rmz -f /mnt/swapfile
+            free -h
+          '
         fi
 
+        sudo rm -f /usr/local/bin/rmz
 
+        FINAL_SPACE=$(get_available_space)
+        TOTAL_SAVED=$((FINAL_SPACE - INITIAL_SPACE))
 
-        # Output saved space statistic
-
-        AVAILABLE_END=$(getAvailableSpace)
-        AVAILABLE_ROOT_END=$(getAvailableSpace '/')
-
-        echo ""
-        printDH "AFTER CLEAN-UP:"
-
-        echo ""
-        echo ""
-
-        echo "/dev/root:"
-        printSavedSpace $((AVAILABLE_ROOT_END - AVAILABLE_ROOT_INITIAL))
-        echo "overall:"
-        printSavedSpace $((AVAILABLE_END - AVAILABLE_INITIAL))
+        echo "Total space saved: $(format_byte_count $TOTAL_SAVED)"
