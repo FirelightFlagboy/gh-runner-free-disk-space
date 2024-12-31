@@ -187,7 +187,7 @@ runs:
         if [[ ${{ inputs.large-packages }} == 'true' ]]; then
           BEFORE=$(getAvailableSpace)
 
-          pkgs=$(list_installed_dpkg 'aspnetcore-*' 'dotnet-*' 'llvm-*' '*php*' 'mongodb-*' 'mysql-*' azure-cli google-chrome-stable firefox powershell mono-devel libgl1-mesa-dri 'google-cloud-*' 'gcloud-*' || true)
+          pkgs=$(list_installed_dpkg 'aspnetcore-*' 'dotnet-*' 'llvm-*' '*php*' 'mongodb-*' 'mysql-*' azure-cli google-chrome-stable firefox powershell mono-devel libgl1-mesa-dri 'google-cloud-*' 'gcloud-*' snapd microsoft-edge-stable || true)
 
           gcloud_prerm='#!/bin/sh
           echo $0
