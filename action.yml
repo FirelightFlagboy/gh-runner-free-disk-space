@@ -53,9 +53,13 @@ runs:
         # ======
         # MACROS
         # ======
+        
+        setup_cargo_binstall() {
+          curl -fsSL --tlsv1.2 --proto '=https' https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh \
+            | bash > /dev/null 2>&1
+        }
 
         setup_rmz() {
-          curl -fsSL --tlsv1.2 --proto '=https' https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash > /dev/null 2>&1
           cargo binstall -qy rmz
           ln -s ~/.cargo/bin/rmz /usr/local/bin/rmz
         }
@@ -133,6 +137,7 @@ runs:
 
         AVAILABLE_INITIAL=$(getAvailableSpace)
         AVAILABLE_ROOT_INITIAL=$(getAvailableSpace '/')
+        setup_cargo_binstall
         setup_rmz
 
         printDH "BEFORE CLEAN-UP:"
