@@ -60,7 +60,7 @@ runs:
         }
 
         setup_rmz() {
-          cargo binstall -qy rmz
+          cargo binstall -qy rmz@2.2.0
           ln -s ~/.cargo/bin/rmz /usr/local/bin/rmz
         }
 
